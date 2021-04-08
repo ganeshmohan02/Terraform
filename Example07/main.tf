@@ -25,8 +25,6 @@ resource "aci_vrf" "vrf1LocalName" {
   }
 #Create Multiple BD's
 resource "aci_bridge_domain" "bd2LocalName" {
-  #for_each = var.bd_sets
-  #name = each.value
   for_each = var.BD_VAR
   name = each.key
   description      = each.value.description
@@ -42,6 +40,7 @@ resource "aci_subnet" "subnetLocalName" {
   ip = each.value.subnet
   scope = ["public","shared"]
 }
+#Create Application profile
 resource "aci_application_profile" "apLocalName" {
   name = "3tier_APP"
   tenant_dn = aci_tenant.tenantLocalName.id
@@ -53,7 +52,8 @@ resource "aci_application_epg" "epgLocalName" {
   application_profile_dn = aci_application_profile.apLocalName.id
   relation_fv_rs_bd = aci_bridge_domain.bd2LocalName[each.value.BD].id
 }
-# Configure the VMM domain
+# Pull the VMM domain from the APIC controller
+
 data "aci_vmm_domain" "a34-uat-fi-a_vds" {
   provider_profile_dn     = "/uni/vmmp-VMware"
   name                     = "a34-uat-fi-a_vds"
@@ -103,16 +103,19 @@ resource "aci_contract" "Contract1_ct"{
   name                        = var.Contract1_name
   scope                    = var.Contract_scope
 }
+#ACI Contract1 subject
 resource "aci_contract_subject" "Contract1_Sub" {
   contract_dn                  = aci_contract.Contract1_ct.id
   name                         = var.Contract1_Sub
   relation_vz_rs_subj_filt_att = [aci_filter.Contract1_filter.id]
 }
+#ACI Contract1 filter
+
 resource "aci_filter" "Contract1_filter" {
   tenant_dn = aci_tenant.tenantLocalName.id
   name = var.Contract1_filter
 }
-
+#ACI Contract1 filter_entry
 resource "aci_filter_entry" "filter_entry" {
   for_each = var.Contract_filter_VAR
   name        = each.value.name
@@ -129,16 +132,18 @@ resource "aci_contract" "Contract2_ct"{
   name                        = var.Contract2_name
   scope                    = var.Contract_scope
 }
+#ACI Contract2 subject
 resource "aci_contract_subject" "Contract2_Sub" {
   contract_dn                  = aci_contract.Contract2_ct.id
   name                         = var.Contract2_Sub
   relation_vz_rs_subj_filt_att = [aci_filter.Contract2_filter.id]
 }
+#ACI Contract2 filter
 resource "aci_filter" "Contract2_filter" {
   tenant_dn = aci_tenant.tenantLocalName.id
   name = var.Contract2_filter
 }
-
+#ACI Contract2 filter_entry
 resource "aci_filter_entry" "filter_entry2" {
   for_each = var.Contract2_filter_VAR
   name        = each.value.name
