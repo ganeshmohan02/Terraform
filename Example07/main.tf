@@ -13,12 +13,12 @@ provider "aci" {
     url      = "https://172.X.X.X/"
     insecure = true
   }
-#Tenant
+# Create Tenant
 resource "aci_tenant" "tenantLocalName" {
     description = "cloudGuru_Terraform"
   name        = var.tenant_name
   }
-#VRF
+#Create VRF
 resource "aci_vrf" "vrf1LocalName" {
     tenant_dn = aci_tenant.tenantLocalName.id
     name        = var.vrf_name
@@ -33,16 +33,17 @@ resource "aci_bridge_domain" "bd2LocalName" {
   tenant_dn = aci_tenant.tenantLocalName.id
   relation_fv_rs_ctx = aci_vrf.vrf1LocalName.id
 }
-#Create More subnets
+#Assign the subnets for corresponding BD.
 resource "aci_subnet" "subnetLocalName" {
   for_each = var.BD_VAR
   parent_dn = aci_bridge_domain.bd2LocalName[each.key].id
   ip = each.value.subnet
   scope = ["public","shared"]
 }
-#Create Application profile
+#Create Application profile for all EPG
+
 resource "aci_application_profile" "apLocalName" {
-  name = "3tier_APP"
+  name = var.App_profile
   tenant_dn = aci_tenant.tenantLocalName.id
 }
 #Create multiple EPG's
@@ -52,8 +53,7 @@ resource "aci_application_epg" "epgLocalName" {
   application_profile_dn = aci_application_profile.apLocalName.id
   relation_fv_rs_bd = aci_bridge_domain.bd2LocalName[each.value.BD].id
 }
-# Pull the VMM domain from the APIC controller
-
+#Pull the VMM domain from the APIC controller
 data "aci_vmm_domain" "a34-uat-fi-a_vds" {
   provider_profile_dn     = "/uni/vmmp-VMware"
   name                     = "a34-uat-fi-a_vds"
@@ -68,54 +68,28 @@ resource "aci_epg_to_domain" "epg_domain" {
   vmm_forged_transmits  = "accept"
   vmm_mac_changes       = "accept"
 }
+#############Contract WEB_APP################
 
-#Apply the consumer contract on EPG1 (web-app)
-resource "aci_epg_to_contract" "Consumer1" {
-  for_each = var.Contract_VAR
-  application_epg_dn = aci_application_epg.epgLocalName[each.value.EPG1].id
-  contract_dn  = aci_contract.Contract1_ct.id
-  contract_type = "consumer"
-}
-#Apply the provider contract on EPG2 (web-app)
-resource "aci_epg_to_contract" "provider1" {
-  for_each = var.Contract_VAR
-  application_epg_dn = aci_application_epg.epgLocalName[each.value.EPG2].id
-  contract_dn  = aci_contract.Contract1_ct.id
-  contract_type = "provider"
-}
-#Apply the consumer contract on EPG2 (APP-DB)
-resource "aci_epg_to_contract" "Consumer2" {
-  for_each = var.Contract_VAR
-  application_epg_dn = aci_application_epg.epgLocalName[each.value.EPG2].id
-  contract_dn  = aci_contract.Contract2_ct.id
-  contract_type = "consumer"
-}
-#Apply the provider contract on EPG3 (APP-DB)
-resource "aci_epg_to_contract" "provider2" {
-  for_each = var.Contract_VAR
-  application_epg_dn = aci_application_epg.epgLocalName[each.value.EPG3].id
-  contract_dn  = aci_contract.Contract2_ct.id
-  contract_type = "provider"
-}
-#ACI Contract1 for WEB_APP
+#Create the Contract1 for WEB_APP
 resource "aci_contract" "Contract1_ct"{
   tenant_dn                 = aci_tenant.tenantLocalName.id
   name                        = var.Contract1_name
   scope                    = var.Contract_scope
 }
-#ACI Contract1 subject
+
+#Create the Contract1 subject for WEB_APP
 resource "aci_contract_subject" "Contract1_Sub" {
   contract_dn                  = aci_contract.Contract1_ct.id
   name                         = var.Contract1_Sub
   relation_vz_rs_subj_filt_att = [aci_filter.Contract1_filter.id]
 }
-#ACI Contract1 filter
 
+#Create the Contract1 filter for WEB_APP
 resource "aci_filter" "Contract1_filter" {
   tenant_dn = aci_tenant.tenantLocalName.id
   name = var.Contract1_filter
 }
-#ACI Contract1 filter_entry
+#Create the Contract1 filter_entry for WEB_APP
 resource "aci_filter_entry" "filter_entry" {
   for_each = var.Contract_filter_VAR
   name        = each.value.name
@@ -125,25 +99,27 @@ resource "aci_filter_entry" "filter_entry" {
   d_to_port = each.value.d_to_port
    stateful    = "yes"
 }
+#############Contract APP_DB ################
 
-#ACI Contract2 for APP_DB
+#Create the Contract2 for for APP_DB
 resource "aci_contract" "Contract2_ct"{
   tenant_dn                 = aci_tenant.tenantLocalName.id
   name                        = var.Contract2_name
   scope                    = var.Contract_scope
 }
-#ACI Contract2 subject
+#Create the Contract2 subject for APP_DB
 resource "aci_contract_subject" "Contract2_Sub" {
   contract_dn                  = aci_contract.Contract2_ct.id
   name                         = var.Contract2_Sub
   relation_vz_rs_subj_filt_att = [aci_filter.Contract2_filter.id]
 }
-#ACI Contract2 filter
+#Create the Contract2 filter for APP_DB
 resource "aci_filter" "Contract2_filter" {
   tenant_dn = aci_tenant.tenantLocalName.id
   name = var.Contract2_filter
 }
-#ACI Contract2 filter_entry
+#Create the Contract2 filter_entry for WEB_APP
+
 resource "aci_filter_entry" "filter_entry2" {
   for_each = var.Contract2_filter_VAR
   name        = each.value.name
@@ -152,4 +128,39 @@ resource "aci_filter_entry" "filter_entry2" {
   prot       = each.value.prot
   d_to_port = each.value.d_to_port
   stateful    = "yes"
+}
+
+#############Contract Association to EPG's ################
+
+#Apply the consumer contract on EPG1 (web-app)
+
+resource "aci_epg_to_contract" "Consumer1" {
+  for_each = var.Contract_VAR
+  application_epg_dn = aci_application_epg.epgLocalName[each.value.EPG1].id
+  contract_dn  = aci_contract.Contract1_ct.id
+  contract_type = "consumer"
+}
+#Apply the provider contract on EPG2 (web-app)
+
+resource "aci_epg_to_contract" "provider1" {
+  for_each = var.Contract_VAR
+  application_epg_dn = aci_application_epg.epgLocalName[each.value.EPG2].id
+  contract_dn  = aci_contract.Contract1_ct.id
+  contract_type = "provider"
+}
+#Apply the consumer contract on EPG2 (APP-DB)
+
+resource "aci_epg_to_contract" "Consumer2" {
+  for_each = var.Contract_VAR
+  application_epg_dn = aci_application_epg.epgLocalName[each.value.EPG2].id
+  contract_dn  = aci_contract.Contract2_ct.id
+  contract_type = "consumer"
+}
+#Apply the provider contract on EPG3 (APP-DB)
+
+resource "aci_epg_to_contract" "provider2" {
+  for_each = var.Contract_VAR
+  application_epg_dn = aci_application_epg.epgLocalName[each.value.EPG3].id
+  contract_dn  = aci_contract.Contract2_ct.id
+  contract_type = "provider"
 }

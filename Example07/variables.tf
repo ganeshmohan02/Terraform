@@ -7,6 +7,7 @@ variable Contract2_name { default = "APP_DB_ct"}
 variable Contract2_Sub { default = "APP_DB_sub" }
 variable Contract2_filter { default = "APP_DB_filter" }
 variable Contract_scope {default = "tenant"  }
+variable App_profile {default = "3tier_APP"  }
 
 variable "BD_VAR" {
 type = map
